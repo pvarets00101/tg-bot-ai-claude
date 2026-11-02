@@ -47,7 +47,8 @@ public sealed class DataStore {
     private readonly string _path;
     private readonly string _mutexName;
 
-    public DataStore(string path) {
+    public DataStore(string path)
+    {
         _path = Path.GetFullPath(path);
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(_path.ToLowerInvariant())))[..16];
         _mutexName = $"Local\\PersonalMcpData_{hash}";
@@ -65,7 +66,8 @@ public sealed class DataStore {
         return result;
     });
 
-    private T Locked<T>(Func<T> action) {
+    private T Locked<T>(Func<T> action)
+    {
         using var mutex = new Mutex(false, _mutexName);
         try {
             if (!mutex.WaitOne(TimeSpan.FromSeconds(10)))

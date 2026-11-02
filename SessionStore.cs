@@ -9,7 +9,8 @@ public sealed class SessionStore {
     private readonly ConcurrentDictionary<long, string> _sessions;
     private readonly Lock _fileLock = new();
 
-    public SessionStore() {
+    public SessionStore()
+    {
         _sessions = File.Exists(_path)
             ? new(JsonSerializer.Deserialize<Dictionary<long, string>>(File.ReadAllText(_path))!)
             : new();
@@ -17,17 +18,20 @@ public sealed class SessionStore {
 
     public string? Get(long chatId) => _sessions.GetValueOrDefault(chatId);
 
-    public void Set(long chatId, string sessionId) {
+    public void Set(long chatId, string sessionId)
+    {
         _sessions[chatId] = sessionId;
         Save();
     }
 
-    public void Reset(long chatId) {
+    public void Reset(long chatId)
+    {
         _sessions.TryRemove(chatId, out _);
         Save();
     }
 
-    private void Save() {
+    private void Save()
+    {
         lock (_fileLock)
             File.WriteAllText(_path, JsonSerializer.Serialize(_sessions));
     }
