@@ -18,6 +18,20 @@ public sealed class ClaudeOptions
 
     public string? Model { get; set; }
     public string? SystemPrompt { get; set; }
+
+    // Файл с постоянными инструкциями агента (относительно папки бота). Склеивается с SystemPrompt.
+    public string InstructionsFile { get; set; } = "agent-instructions.md";
+
+    // --restricted: без инструментов, выполняющих команды; игнорируются ~/.claude/settings.json
+    // (в т.ч. defaultMode=auto); файловые инструменты ограничены рабочей папкой.
+    public bool Restricted { get; set; } = true;
+
+    // --tools: какие встроенные инструменты вообще существуют для агента. MCP-инструменты не затрагивает.
+    public string[] Tools { get; set; } = ["Read", "WebSearch", "WebFetch"];
+
+    // --permission-mode: dontAsk = всё, что не в AllowedTools, молча отклоняется.
+    public string PermissionMode { get; set; } = "dontAsk";
+
     public string[] AllowedTools { get; set; } = [];
     public int MaxTurns { get; set; } = 10;
     public int TimeoutSeconds { get; set; } = 300;
@@ -40,6 +54,19 @@ public sealed class PersonalMcpOptions
 
     // Папка с git-репозиториями для list_repos / repo_status. Пусто = инструменты отключены.
     public string ReposRoot { get; set; } = "";
+}
+
+// Фото и файлы из Telegram. Бот кладёт их в <WorkingDirectory>/inbox/<chatId>/, агенту
+// разрешено читать только эту папку (правило "Read(./inbox/**)" в Claude:AllowedTools).
+public sealed class AttachmentOptions
+{
+    public bool Enabled { get; set; } = true;
+
+    // Bot API не отдаёт файлы больше 20 МБ.
+    public int MaxFileSizeMb { get; set; } = 20;
+
+    // Через сколько дней удалять скачанные файлы.
+    public int RetentionDays { get; set; } = 7;
 }
 
 // Напоминания и утренняя сводка. Работают без вызова claude, лимиты не тратят.

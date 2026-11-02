@@ -21,7 +21,8 @@
 
   <ItemGroup>
     <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
-    <None Update="agent-workspace\**" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="agent-instructions.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="agent-workspace\.gitkeep" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- Собираем MCP-сервер вместе с ботом (без ссылки на сборку) и кладём его в bin\...\mcp. -->

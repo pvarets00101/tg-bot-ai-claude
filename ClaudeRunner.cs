@@ -93,7 +93,10 @@ public sealed class ClaudeRunner(
         Add(psi, "--output-format", "json");
         Add(psi, "--max-turns", _o.MaxTurns.ToString());
         if (!string.IsNullOrWhiteSpace(_o.Model)) Add(psi, "--model", _o.Model);
-        if (!string.IsNullOrWhiteSpace(_o.SystemPrompt)) Add(psi, "--append-system-prompt", _o.SystemPrompt);
+        if (_o.Restricted) psi.ArgumentList.Add("--restricted");
+        if (_o.Tools.Length > 0) Add(psi, "--tools", string.Join(",", _o.Tools));
+        if (!string.IsNullOrWhiteSpace(_o.PermissionMode)) Add(psi, "--permission-mode", _o.PermissionMode);
+        if (WriteSystemPromptFile() is { } promptFile) Add(psi, "--append-system-prompt-file", promptFile);
         if (_o.AllowedTools.Length > 0) Add(psi, "--allowedTools", string.Join(",", _o.AllowedTools));
         if (_mcpConfigPath is not null)
         {
@@ -144,6 +147,28 @@ public sealed class ClaudeRunner(
         log.LogInformation("claude done: session={Session} error={Error} cost=${Cost}",
             reply.SessionId, reply.IsError, reply.CostUsd);
         return reply;
+    }
+
+    // SystemPrompt + файл инструкций -> один файл для --append-system-prompt-file.
+    // Через файл, а не аргументом: многострочный текст ломается при передаче через claude.cmd.
+    // Читаем при каждом запуске, чтобы правки инструкций подхватывались без перезапуска бота.
+    private string? WriteSystemPromptFile()
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(_o.SystemPrompt)) parts.Add(_o.SystemPrompt.Trim());
+
+        var instructions = Path.GetFullPath(_o.InstructionsFile, AppContext.BaseDirectory);
+        if (File.Exists(instructions)) parts.Add(File.ReadAllText(instructions).Trim());
+        else log.LogWarning("Файл инструкций агента не найден: {Path}", instructions);
+
+        if (parts.Count == 0) return null;
+
+        // Вызовы claude идут под семафором, но при MaxConcurrency > 1 пишем атомарно.
+        var path = Path.Combine(AppContext.BaseDirectory, "system-prompt.generated.md");
+        var tmp = $"{path}.{Environment.CurrentManagedThreadId}.tmp";
+        File.WriteAllText(tmp, string.Join("\n\n", parts), new UTF8Encoding(false));
+        File.Move(tmp, path, overwrite: true);
+        return path;
     }
 
     // <root>\shared\Microsoft.NETCore.App\<версия>\ -> <root>

@@ -12,6 +12,8 @@ builder.Services.Configure<BotOptions>(builder.Configuration.GetSection("Bot"));
 builder.Services.Configure<ClaudeOptions>(builder.Configuration.GetSection("Claude"));
 builder.Services.Configure<PersonalMcpOptions>(builder.Configuration.GetSection("PersonalMcp"));
 builder.Services.Configure<ReminderOptions>(builder.Configuration.GetSection("Reminders"));
+builder.Services.Configure<AttachmentOptions>(builder.Configuration.GetSection("Attachments"));
+builder.Services.AddSingleton<AttachmentService>();
 
 // Тот же файл, что и у MCP-сервера (путь передаётся ему в mcp-config.json).
 builder.Services.AddSingleton(sp => new PersonalMcp.DataStore(Path.GetFullPath(

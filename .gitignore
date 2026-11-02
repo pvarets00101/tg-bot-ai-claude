@@ -17,3 +17,4 @@ mcp-config.json
 # Секреты храним в user-secrets, но на всякий случай
 appsettings.*.local.json
 .env
+system-prompt.generated.md

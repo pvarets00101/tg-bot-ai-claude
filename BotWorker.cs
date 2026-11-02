@@ -11,15 +11,21 @@ public sealed class BotWorker(
     ClaudeRunner claude,
     SessionStore sessions,
     ReminderService reminders,
+    AttachmentService attachments,
     IOptions<BotOptions> options,
     ILogger<BotWorker> log) : BackgroundService
 {
     private const int TelegramMaxLength = 4000;
 
+    // Альбом приходит отдельными сообщениями с общим MediaGroupId. Ждём остальные части столько,
+    // а потом отправляем агенту всё одним запросом.
+    private static readonly TimeSpan AlbumWait = TimeSpan.FromSeconds(1.5);
+
     private readonly HashSet<long> _allowed = [.. options.Value.AllowedUserIds];
 
     // Сообщения одного чата обрабатываются строго по очереди, разные чаты параллельно.
     private readonly ConcurrentDictionary<long, SemaphoreSlim> _chatLocks = new();
+    private readonly ConcurrentDictionary<string, List<Message>> _albums = new();
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
@@ -51,6 +57,8 @@ public sealed class BotWorker(
                 offset = update.Id + 1;
                 if (update.Message is { Text: { } text, From: { } from } msg)
                     _ = HandleAsync(msg.Chat.Id, from.Id, text, ct);
+                else if (update.Message is { From: not null } media)
+                    _ = HandleMediaAsync(media, ct);
                 else if (update.CallbackQuery is { } query)
                     _ = HandleCallbackAsync(query, ct);
             }
@@ -81,21 +89,90 @@ public sealed class BotWorker(
                     return;
             }
 
-            var chatLock = _chatLocks.GetOrAdd(chatId, _ => new SemaphoreSlim(1));
-            await chatLock.WaitAsync(ct);
-            try
-            {
-                await AskClaudeAsync(chatId, text, ct);
-            }
-            finally
-            {
-                chatLock.Release();
-            }
+            await InChatQueue(chatId, () => AskClaudeAsync(chatId, text, ct), ct);
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
             log.LogError(ex, "Failed to handle message in chat {ChatId}", chatId);
             await Send(chatId, "Что-то пошло не так, подробности в логах.", ct);
+        }
+    }
+
+    // Фото, документы и всё остальное, что не текст.
+    private async Task HandleMediaAsync(Message msg, CancellationToken ct)
+    {
+        var chatId = msg.Chat.Id;
+        try
+        {
+            if (!_allowed.Contains(msg.From!.Id))
+            {
+                await Send(chatId, $"Нет доступа. Ваш user id: {msg.From.Id}", ct);
+                return;
+            }
+
+            if (!AttachmentService.HasAttachment(msg) || !attachments.Enabled)
+            {
+                await Send(chatId, "Пока понимаю только текст, фото и файлы.", ct);
+                return;
+            }
+
+            var parts = await CollectAlbumAsync(msg, ct);
+            if (parts is null) return; // эту часть альбома обработает первое сообщение
+
+            await InChatQueue(chatId, async () =>
+            {
+                var files = new List<SavedAttachment>();
+                foreach (var part in parts)
+                    files.Add(await attachments.DownloadAsync(part, ct));
+
+                // Подпись у альбома обычно только на одном из сообщений.
+                var caption = parts.Select(p => p.Caption).FirstOrDefault(c => !string.IsNullOrWhiteSpace(c));
+                await AskClaudeAsync(chatId, AttachmentService.BuildPrompt(caption, files), ct);
+            }, ct);
+        }
+        catch (AttachmentException ex)
+        {
+            await Send(chatId, ex.Message, ct);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            log.LogError(ex, "Failed to handle attachment in chat {ChatId}", chatId);
+            await Send(chatId, "Не получилось обработать вложение, подробности в логах.", ct);
+        }
+    }
+
+    // Одиночное сообщение возвращается сразу. Для альбома первое сообщение ждёт остальные
+    // и возвращает их все, остальные получают null.
+    private async Task<IReadOnlyList<Message>?> CollectAlbumAsync(Message msg, CancellationToken ct)
+    {
+        if (msg.MediaGroupId is not { } groupId) return [msg];
+
+        var key = $"{msg.Chat.Id}:{groupId}";
+        var list = _albums.GetOrAdd(key, _ => []);
+        bool first;
+        lock (list)
+        {
+            first = list.Count == 0;
+            list.Add(msg);
+        }
+        if (!first) return null;
+
+        await Task.Delay(AlbumWait, ct);
+        _albums.TryRemove(key, out _);
+        lock (list) return list.OrderBy(m => m.Id).ToList();
+    }
+
+    private async Task InChatQueue(long chatId, Func<Task> action, CancellationToken ct)
+    {
+        var chatLock = _chatLocks.GetOrAdd(chatId, _ => new SemaphoreSlim(1));
+        await chatLock.WaitAsync(ct);
+        try
+        {
+            await action();
+        }
+        finally
+        {
+            chatLock.Release();
         }
     }
 
