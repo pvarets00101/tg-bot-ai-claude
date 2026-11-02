@@ -4,7 +4,8 @@ using ModelContextProtocol.Server;
 namespace PersonalMcp.Tools;
 
 [McpServerToolType]
-public sealed class NoteTools(DataStore store) {
+public sealed class NoteTools(DataStore store)
+{
     [McpServerTool(Name = "add_note"), Description("Сохраняет заметку пользователя. Возвращает id заметки.")]
     public string AddNote(
         [Description("Текст заметки")] string text,

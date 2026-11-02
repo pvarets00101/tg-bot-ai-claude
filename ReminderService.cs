@@ -15,7 +15,8 @@ public sealed class ReminderService(
     DataStore store,
     IOptions<ReminderOptions> options,
     IOptions<BotOptions> botOptions,
-    ILogger<ReminderService> log) : BackgroundService {
+    ILogger<ReminderService> log) : BackgroundService
+{
     private readonly ReminderOptions _o = options.Value;
     private readonly long[] _recipients = botOptions.Value.AllowedUserIds;
     private readonly TimeOnly? _digestTime = TimeOnly.TryParseExact(

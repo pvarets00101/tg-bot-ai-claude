@@ -13,7 +13,8 @@ public sealed class BotWorker(
     ReminderService reminders,
     AttachmentService attachments,
     IOptions<BotOptions> options,
-    ILogger<BotWorker> log) : BackgroundService {
+    ILogger<BotWorker> log) : BackgroundService
+{
     private const int TelegramMaxLength = 4000;
 
     // Альбом приходит отдельными сообщениями с общим MediaGroupId. Ждём остальные части столько,

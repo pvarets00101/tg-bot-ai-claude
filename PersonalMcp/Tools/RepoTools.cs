@@ -9,7 +9,8 @@ public sealed record RepoSettings(string Root);
 
 // Только чтение: агент видит состояние репозиториев, но ничего в них не меняет.
 [McpServerToolType]
-public sealed class RepoTools(RepoSettings settings) {
+public sealed class RepoTools(RepoSettings settings)
+{
     private const int MaxOutput = 3000;
 
     [McpServerTool(Name = "list_repos", ReadOnly = true),

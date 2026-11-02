@@ -11,7 +11,8 @@ public sealed record ClaudeReply(string Text, string? SessionId, bool IsError, d
 public sealed class ClaudeRunner(
     IOptions<ClaudeOptions> options,
     IOptions<PersonalMcpOptions> mcpOptions,
-    ILogger<ClaudeRunner> log) {
+    ILogger<ClaudeRunner> log)
+{
     private readonly ClaudeOptions _o = options.Value;
     private readonly SemaphoreSlim _gate = new(options.Value.MaxConcurrency);
     private readonly string? _mcpConfigPath = WriteMcpConfig(mcpOptions.Value, log);

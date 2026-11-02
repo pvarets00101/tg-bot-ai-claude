@@ -5,7 +5,8 @@ using ModelContextProtocol.Server;
 namespace PersonalMcp.Tools;
 
 [McpServerToolType]
-public sealed class TaskTools(DataStore store) {
+public sealed class TaskTools(DataStore store)
+{
     [McpServerTool(Name = "add_task"),
      Description("Добавляет задачу в список дел. Если указано время, бот пришлёт напоминание в Telegram " +
                  "в этот момент. Время без даты = сегодня (или завтра, если время уже прошло). Возвращает id задачи.")]

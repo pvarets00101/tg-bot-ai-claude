@@ -4,7 +4,8 @@ using System.Text.Json;
 namespace ClaudeTelegramBot;
 
 // chatId -> session_id Claude Code. Хранится в JSON-файле, чтобы диалоги переживали перезапуск.
-public sealed class SessionStore {
+public sealed class SessionStore
+{
     private readonly string _path = Path.Combine(AppContext.BaseDirectory, "sessions.json");
     private readonly ConcurrentDictionary<long, string> _sessions;
     private readonly Lock _fileLock = new();

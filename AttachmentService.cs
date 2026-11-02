@@ -15,7 +15,8 @@ public sealed class AttachmentService(
     ITelegramBotClient bot,
     ClaudeRunner claude,
     IOptions<AttachmentOptions> options,
-    ILogger<AttachmentService> log) {
+    ILogger<AttachmentService> log)
+{
     private const string InboxFolder = "inbox";
     private const string DefaultInstruction =
         "Посмотри, что я прислал, и коротко скажи, что там. Если это ошибка, лог или код — " +
