@@ -1,0 +1,19 @@
+# Сборка
+bin/
+obj/
+
+# IDE
+.idea/
+.vs/
+*.user
+*.DotSettings.user
+
+# Данные бота (создаются в рантайме, личные)
+sessions.json
+personal-data.json
+personal-data.json.tmp
+mcp-config.json
+
+# Секреты храним в user-secrets, но на всякий случай
+appsettings.*.local.json
+.env
