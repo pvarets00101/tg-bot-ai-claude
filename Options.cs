@@ -1,15 +1,13 @@
 namespace ClaudeTelegramBot;
 
-public sealed class BotOptions
-{
+public sealed class BotOptions {
     public string Token { get; set; } = "";
 
     // Telegram user id, которым разрешено писать боту. Пустой список = доступ закрыт для всех.
     public long[] AllowedUserIds { get; set; } = [];
 }
 
-public sealed class ClaudeOptions
-{
+public sealed class ClaudeOptions {
     public string ExecutablePath { get; set; } = "claude";
 
     // Папка, в которой запускается claude. Здесь лежит CLAUDE.md с инструкциями агента
@@ -42,8 +40,7 @@ public sealed class ClaudeOptions
 
 // Свой MCP-сервер (проект PersonalMcp). Бот генерирует для него mcp-config.json
 // и передаёт в claude через --mcp-config. Инструменты видны агенту как mcp__personal__*.
-public sealed class PersonalMcpOptions
-{
+public sealed class PersonalMcpOptions {
     public bool Enabled { get; set; } = true;
 
     // Относительно папки бота; сборка бота кладёт сервер в bin\...\mcp.
@@ -58,8 +55,7 @@ public sealed class PersonalMcpOptions
 
 // Фото и файлы из Telegram. Бот кладёт их в <WorkingDirectory>/inbox/<chatId>/, агенту
 // разрешено читать только эту папку (правило "Read(./inbox/**)" в Claude:AllowedTools).
-public sealed class AttachmentOptions
-{
+public sealed class AttachmentOptions {
     public bool Enabled { get; set; } = true;
 
     // Bot API не отдаёт файлы больше 20 МБ.
@@ -71,8 +67,7 @@ public sealed class AttachmentOptions
 
 // Напоминания и утренняя сводка. Работают без вызова claude, лимиты не тратят.
 // Получатели — все пользователи из Bot:AllowedUserIds (личный чат с ботом = user id).
-public sealed class ReminderOptions
-{
+public sealed class ReminderOptions {
     public bool Enabled { get; set; } = true;
     public int CheckIntervalSeconds { get; set; } = 30;
 

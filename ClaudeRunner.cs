@@ -11,8 +11,7 @@ public sealed record ClaudeReply(string Text, string? SessionId, bool IsError, d
 public sealed class ClaudeRunner(
     IOptions<ClaudeOptions> options,
     IOptions<PersonalMcpOptions> mcpOptions,
-    ILogger<ClaudeRunner> log)
-{
+    ILogger<ClaudeRunner> log) {
     private readonly ClaudeOptions _o = options.Value;
     private readonly SemaphoreSlim _gate = new(options.Value.MaxConcurrency);
     private readonly string? _mcpConfigPath = WriteMcpConfig(mcpOptions.Value, log);
@@ -21,28 +20,22 @@ public sealed class ClaudeRunner(
         options.Value.WorkingDirectory, AppContext.BaseDirectory);
 
     // Генерирует mcp-config.json с абсолютными путями, чтобы не зависеть от того, откуда запущен бот.
-    private static string? WriteMcpConfig(PersonalMcpOptions o, ILogger log)
-    {
+    private static string? WriteMcpConfig(PersonalMcpOptions o, ILogger log) {
         if (!o.Enabled) return null;
 
         var serverPath = Path.GetFullPath(o.ServerPath, AppContext.BaseDirectory);
-        if (!File.Exists(serverPath))
-        {
+        if (!File.Exists(serverPath)) {
             log.LogWarning("PersonalMcp не найден: {Path}. Агент будет работать без своих инструментов.", serverPath);
             return null;
         }
 
-        var config = new
-        {
-            mcpServers = new Dictionary<string, object>
-            {
-                ["personal"] = new
-                {
+        var config = new {
+            mcpServers = new Dictionary<string, object> {
+                ["personal"] = new {
                     type = "stdio",
                     command = serverPath,
                     args = Array.Empty<string>(),
-                    env = new Dictionary<string, string>
-                    {
+                    env = new Dictionary<string, string> {
                         // exe сервера ищет рантайм через DOTNET_ROOT. Отдаём ему тот же .NET, на котором
                         // работает бот: иначе из Rider (~/.dotnet) или из консоли (Program Files) он может
                         // не найти нужную версию.
@@ -60,25 +53,19 @@ public sealed class ClaudeRunner(
         return path;
     }
 
-    public async Task<ClaudeReply> AskAsync(string prompt, string? sessionId, CancellationToken ct)
-    {
+    public async Task<ClaudeReply> AskAsync(string prompt, string? sessionId, CancellationToken ct) {
         await _gate.WaitAsync(ct);
-        try
-        {
+        try {
             return await RunAsync(prompt, sessionId, ct);
-        }
-        finally
-        {
+        } finally {
             _gate.Release();
         }
     }
 
-    private async Task<ClaudeReply> RunAsync(string prompt, string? sessionId, CancellationToken ct)
-    {
+    private async Task<ClaudeReply> RunAsync(string prompt, string? sessionId, CancellationToken ct) {
         Directory.CreateDirectory(WorkingDirectory);
 
-        var psi = new ProcessStartInfo(_o.ExecutablePath)
-        {
+        var psi = new ProcessStartInfo(_o.ExecutablePath) {
             WorkingDirectory = WorkingDirectory,
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
@@ -98,8 +85,7 @@ public sealed class ClaudeRunner(
         if (!string.IsNullOrWhiteSpace(_o.PermissionMode)) Add(psi, "--permission-mode", _o.PermissionMode);
         if (WriteSystemPromptFile() is { } promptFile) Add(psi, "--append-system-prompt-file", promptFile);
         if (_o.AllowedTools.Length > 0) Add(psi, "--allowedTools", string.Join(",", _o.AllowedTools));
-        if (_mcpConfigPath is not null)
-        {
+        if (_mcpConfigPath is not null) {
             // --strict-mcp-config: только наш сервер, без MCP из глобальных настроек Claude Code.
             Add(psi, "--mcp-config", _mcpConfigPath);
             psi.ArgumentList.Add("--strict-mcp-config");
@@ -115,12 +101,9 @@ public sealed class ClaudeRunner(
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(_o.TimeoutSeconds));
-        try
-        {
+        try {
             await proc.WaitForExitAsync(timeout.Token);
-        }
-        catch (OperationCanceledException)
-        {
+        } catch (OperationCanceledException) {
             proc.Kill(entireProcessTree: true);
             ct.ThrowIfCancellationRequested();
             return new ClaudeReply($"Превышено время ожидания ({_o.TimeoutSeconds} с).", sessionId, true, null);
@@ -129,8 +112,7 @@ public sealed class ClaudeRunner(
         var stdout = await stdoutTask;
         var stderr = await stderrTask;
 
-        if (string.IsNullOrWhiteSpace(stdout))
-        {
+        if (string.IsNullOrWhiteSpace(stdout)) {
             log.LogError("claude exited with {Code}: {Stderr}", proc.ExitCode, stderr);
             return new ClaudeReply($"claude завершился с кодом {proc.ExitCode}: {stderr.Trim()}", sessionId, true, null);
         }
@@ -152,8 +134,7 @@ public sealed class ClaudeRunner(
     // SystemPrompt + файл инструкций -> один файл для --append-system-prompt-file.
     // Через файл, а не аргументом: многострочный текст ломается при передаче через claude.cmd.
     // Читаем при каждом запуске, чтобы правки инструкций подхватывались без перезапуска бота.
-    private string? WriteSystemPromptFile()
-    {
+    private string? WriteSystemPromptFile() {
         var parts = new List<string>();
         if (!string.IsNullOrWhiteSpace(_o.SystemPrompt)) parts.Add(_o.SystemPrompt.Trim());
 
@@ -175,8 +156,7 @@ public sealed class ClaudeRunner(
     private static string DotnetRoot() => Path.GetFullPath(Path.Combine(
         System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory(), "..", "..", ".."));
 
-    private static void Add(ProcessStartInfo psi, string name, string value)
-    {
+    private static void Add(ProcessStartInfo psi, string name, string value) {
         psi.ArgumentList.Add(name);
         psi.ArgumentList.Add(value);
     }

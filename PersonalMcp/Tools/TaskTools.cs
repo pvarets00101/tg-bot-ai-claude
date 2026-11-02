@@ -5,23 +5,19 @@ using ModelContextProtocol.Server;
 namespace PersonalMcp.Tools;
 
 [McpServerToolType]
-public sealed class TaskTools(DataStore store)
-{
+public sealed class TaskTools(DataStore store) {
     [McpServerTool(Name = "add_task"),
      Description("Добавляет задачу в список дел. Если указано время, бот пришлёт напоминание в Telegram " +
                  "в этот момент. Время без даты = сегодня (или завтра, если время уже прошло). Возвращает id задачи.")]
     public string AddTask(
         [Description("Что нужно сделать")] string title,
         [Description("Срок в формате yyyy-MM-dd, если есть")] string? due = null,
-        [Description("Время напоминания HH:mm, если пользователь просит напомнить в конкретное время")] string? time = null)
-    {
+        [Description("Время напоминания HH:mm, если пользователь просит напомнить в конкретное время")] string? time = null) {
         if (string.IsNullOrWhiteSpace(title)) return "Ошибка: пустое название задачи.";
         if (!TryParseSchedule(due, time, out var dueDate, out var remindAt, out var error)) return error;
 
-        var task = store.Update(d =>
-        {
-            var t = new TaskItem
-            {
+        var task = store.Update(d => {
+            var t = new TaskItem {
                 Id = d.NextId++,
                 Title = title.Trim(),
                 Due = dueDate,
@@ -39,12 +35,10 @@ public sealed class TaskTools(DataStore store)
     public string RescheduleTask(
         [Description("id задачи")] int id,
         [Description("Новый срок yyyy-MM-dd")] string? due = null,
-        [Description("Новое время напоминания HH:mm")] string? time = null)
-    {
+        [Description("Новое время напоминания HH:mm")] string? time = null) {
         if (!TryParseSchedule(due, time, out var dueDate, out var remindAt, out var error)) return error;
 
-        return store.Update(d =>
-        {
+        return store.Update(d => {
             var t = d.Tasks.FirstOrDefault(x => x.Id == id);
             if (t is null) return $"Задача #{id} не найдена.";
             t.Due = dueDate;
@@ -56,8 +50,7 @@ public sealed class TaskTools(DataStore store)
 
     [McpServerTool(Name = "list_tasks", ReadOnly = true),
      Description("Показывает список дел: открытые задачи по сроку, затем без срока. Сегодняшняя дата указана в первой строке.")]
-    public string ListTasks([Description("Показать и выполненные задачи")] bool includeDone = false)
-    {
+    public string ListTasks([Description("Показать и выполненные задачи")] bool includeDone = false) {
         var today = DateOnly.FromDateTime(DateTime.Now);
         var tasks = store.Read(d => d.Tasks
             .Where(t => includeDone || !t.Done)
@@ -68,8 +61,7 @@ public sealed class TaskTools(DataStore store)
             .ToList());
 
         if (tasks.Count == 0) return $"Сегодня {today:yyyy-MM-dd}. Задач нет.";
-        return $"Сегодня {today:yyyy-MM-dd}.\n" + string.Join("\n", tasks.Select(t =>
-        {
+        return $"Сегодня {today:yyyy-MM-dd}.\n" + string.Join("\n", tasks.Select(t => {
             var mark = t.Done ? "[x]" : "[ ]";
             var overdue = !t.Done && t.Due is { } d && d < today ? ", просрочено" : "";
             return $"{mark} #{t.Id} {t.Title}{Describe(t)}{overdue}";
@@ -78,8 +70,7 @@ public sealed class TaskTools(DataStore store)
 
     [McpServerTool(Name = "complete_task"), Description("Отмечает задачу выполненной.")]
     public string CompleteTask([Description("id задачи")] int id) =>
-        store.Update(d =>
-        {
+        store.Update(d => {
             var t = d.Tasks.FirstOrDefault(x => x.Id == id);
             if (t is null) return $"Задача #{id} не найдена.";
             if (t.Done) return $"Задача #{id} уже выполнена.";
@@ -94,8 +85,7 @@ public sealed class TaskTools(DataStore store)
             ? $"Задача #{id} удалена."
             : $"Задача #{id} не найдена.";
 
-    private static string Describe(TaskItem t)
-    {
+    private static string Describe(TaskItem t) {
         var parts = new List<string>();
         if (t.Due is { } d) parts.Add($"срок {d:yyyy-MM-dd}");
         if (t.RemindAt is { } r) parts.Add($"напоминание {r:yyyy-MM-dd HH:mm}{(t.Reminded ? " (отправлено)" : "")}");
@@ -103,26 +93,21 @@ public sealed class TaskTools(DataStore store)
     }
 
     private static bool TryParseSchedule(string? due, string? time,
-        out DateOnly? dueDate, out DateTimeOffset? remindAt, out string error)
-    {
+        out DateOnly? dueDate, out DateTimeOffset? remindAt, out string error) {
         dueDate = null;
         remindAt = null;
         error = "";
 
-        if (!string.IsNullOrWhiteSpace(due))
-        {
-            if (!DateOnly.TryParseExact(due.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
-            {
+        if (!string.IsNullOrWhiteSpace(due)) {
+            if (!DateOnly.TryParseExact(due.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)) {
                 error = "Ошибка: срок должен быть в формате yyyy-MM-dd.";
                 return false;
             }
             dueDate = d;
         }
 
-        if (!string.IsNullOrWhiteSpace(time))
-        {
-            if (!TimeOnly.TryParseExact(time.Trim(), ["HH:mm", "H:mm"], CultureInfo.InvariantCulture, DateTimeStyles.None, out var t))
-            {
+        if (!string.IsNullOrWhiteSpace(time)) {
+            if (!TimeOnly.TryParseExact(time.Trim(), ["HH:mm", "H:mm"], CultureInfo.InvariantCulture, DateTimeStyles.None, out var t)) {
                 error = "Ошибка: время должно быть в формате HH:mm.";
                 return false;
             }
@@ -131,8 +116,7 @@ public sealed class TaskTools(DataStore store)
             var date = dueDate ?? DateOnly.FromDateTime(now);
             var at = date.ToDateTime(t);
             if (dueDate is null && at <= now) at = at.AddDays(1); // «в 9:00» вечером = завтра утром
-            if (at <= now)
-            {
+            if (at <= now) {
                 error = $"Ошибка: время напоминания {at:yyyy-MM-dd HH:mm} уже прошло.";
                 return false;
             }

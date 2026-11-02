@@ -1,0 +1,37 @@
+root = true
+
+[*]
+charset = utf-8
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{json,csproj,props,targets,xml}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+# K&R: открывающая скобка на той же строке, else/catch/finally — после закрывающей.
+csharp_new_line_before_open_brace = none
+csharp_new_line_before_else = false
+csharp_new_line_before_catch = false
+csharp_new_line_before_finally = false
+csharp_new_line_before_members_in_object_initializers = true
+csharp_new_line_before_members_in_anonymous_types = true
+
+# То же для Rider/ReSharper.
+resharper_brace_style = end_of_line
+resharper_type_declaration_braces = end_of_line
+resharper_invocable_declaration_braces = end_of_line
+resharper_anonymous_method_declaration_braces = end_of_line
+resharper_accessor_owner_declaration_braces = end_of_line
+resharper_accessor_declaration_braces = end_of_line
+resharper_case_block_braces = end_of_line
+resharper_initializer_braces = end_of_line
+resharper_other_braces = end_of_line
+resharper_new_line_before_else = false
+resharper_new_line_before_catch = false
+resharper_new_line_before_finally = false
