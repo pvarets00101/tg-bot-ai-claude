@@ -36,6 +36,15 @@ public sealed class ClaudeOptions {
     public string PermissionMode { get; set; } = "dontAsk";
 
     public string[] AllowedTools { get; set; } = [];
+
+    // Модели, которые можно выбрать командой /model (алиасы claude --model).
+    // null в инициализаторе — по той же причине, что и у Tools.
+    public string[]? AllowedModels { get; set; }
+
+    public static readonly string[] DefaultAllowedModels = ["haiku", "sonnet", "opus"];
+
+    // Предупреждать под ответом, когда 5-часовой или недельный лимит подписки израсходован на столько %.
+    public int LimitWarningPercent { get; set; } = 80;
     public int MaxTurns { get; set; } = 10;
     public int TimeoutSeconds { get; set; } = 300;
 

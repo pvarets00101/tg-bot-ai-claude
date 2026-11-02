@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
+using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace ClaudeTelegramBot;
 
@@ -10,17 +12,34 @@ public sealed class BotWorker(
     ITelegramBotClient bot,
     ClaudeRunner claude,
     SessionStore sessions,
+    ChatSettingsStore chatSettings,
+    UsageStore usage,
     ReminderService reminders,
     AttachmentService attachments,
     IOptions<BotOptions> options,
+    IOptions<ClaudeOptions> claudeOptions,
     ILogger<BotWorker> log) : BackgroundService {
-    private const int TelegramMaxLength = 4000;
+    private const int PlainMaxLength = 4000;
 
     // Альбом приходит отдельными сообщениями с общим MediaGroupId. Ждём остальные части столько,
     // а потом отправляем агенту всё одним запросом.
     private static readonly TimeSpan AlbumWait = TimeSpan.FromSeconds(1.5);
 
+    private static readonly LinkPreviewOptions NoPreview = new() { IsDisabled = true };
+
+    private static readonly BotCommand[] Commands = [
+        new() { Command = "new", Description = "Начать новый диалог" },
+        new() { Command = "tasks", Description = "Открытые задачи" },
+        new() { Command = "model", Description = "Выбрать модель для этого чата" },
+        new() { Command = "usage", Description = "Лимиты подписки и статистика" },
+        new() { Command = "help", Description = "Что умеет бот" },
+    ];
+
     private readonly HashSet<long> _allowed = [.. options.Value.AllowedUserIds];
+    private readonly ClaudeOptions _claude = claudeOptions.Value;
+    private readonly string[] _models = claudeOptions.Value.AllowedModels is { Length: > 0 } m
+        ? m
+        : ClaudeOptions.DefaultAllowedModels;
 
     // Сообщения одного чата обрабатываются строго по очереди, разные чаты параллельно.
     private readonly ConcurrentDictionary<long, SemaphoreSlim> _chatLocks = new();
@@ -29,6 +48,12 @@ public sealed class BotWorker(
     protected override async Task ExecuteAsync(CancellationToken ct) {
         var me = await bot.GetMe(ct);
         log.LogInformation("Bot @{Username} started, agent workspace: {Dir}", me.Username, claude.WorkingDirectory);
+
+        try {
+            await bot.SetMyCommands(Commands, cancellationToken: ct);
+        } catch (Exception ex) when (!ct.IsCancellationRequested) {
+            log.LogWarning(ex, "Не удалось зарегистрировать меню команд");
+        }
 
         var offset = 0;
         while (!ct.IsCancellationRequested) {
@@ -56,6 +81,8 @@ public sealed class BotWorker(
         }
     }
 
+    // --- Текст и команды ---
+
     private async Task HandleAsync(long chatId, long userId, string text, CancellationToken ct) {
         try {
             if (!_allowed.Contains(userId)) {
@@ -63,18 +90,7 @@ public sealed class BotWorker(
                 return;
             }
 
-            switch (text.Trim()) {
-                case "/start":
-                    await Send(chatId, "Привет! Пишите задачу. /new — начать новый диалог, /tasks — открытые задачи.", ct);
-                    return;
-                case "/tasks":
-                    await Send(chatId, reminders.FormatOpenTasks(), ct);
-                    return;
-                case "/new":
-                    sessions.Reset(chatId);
-                    await Send(chatId, "Контекст сброшен, начинаем новый диалог.", ct);
-                    return;
-            }
+            if (await TryHandleCommandAsync(chatId, text.Trim(), ct)) return;
 
             await InChatQueue(chatId, () => AskClaudeAsync(chatId, text, ct), ct);
         } catch (Exception ex) when (!ct.IsCancellationRequested) {
@@ -83,7 +99,82 @@ public sealed class BotWorker(
         }
     }
 
-    // Фото, документы и всё остальное, что не текст.
+    private async Task<bool> TryHandleCommandAsync(long chatId, string text, CancellationToken ct) {
+        if (!text.StartsWith('/')) return false;
+
+        // "/model@my_bot haiku" -> ("/model", "haiku")
+        var space = text.IndexOf(' ');
+        var command = (space < 0 ? text : text[..space]).Split('@')[0].ToLowerInvariant();
+        var arg = space < 0 ? "" : text[(space + 1)..].Trim();
+
+        switch (command) {
+            case "/start":
+            case "/help":
+                await SendHtml(chatId, HelpText(), null, ct);
+                return true;
+            case "/new":
+                sessions.Reset(chatId);
+                await Send(chatId, "Контекст сброшен, начинаем новый диалог.", ct);
+                return true;
+            case "/tasks":
+                await Send(chatId, reminders.FormatOpenTasks(), ct);
+                return true;
+            case "/usage":
+                await SendHtml(chatId, UsageReport.Build(usage, ModelLabel(chatSettings.GetModel(chatId))), null, ct);
+                return true;
+            case "/model":
+                await HandleModelCommandAsync(chatId, arg, ct);
+                return true;
+            default:
+                return false; // неизвестную команду отдаём агенту как обычный текст
+        }
+    }
+
+    private async Task HandleModelCommandAsync(long chatId, string arg, CancellationToken ct) {
+        if (arg.Length == 0) {
+            var current = chatSettings.GetModel(chatId);
+            await SendHtml(chatId,
+                $"Модель этого чата: <b>{TelegramFormatter.Escape(ModelLabel(current))}</b>\nВыберите другую:",
+                ModelButtons(current), ct);
+            return;
+        }
+
+        var result = SetModel(chatId, arg);
+        await Send(chatId, result ?? $"Не знаю модель «{arg}». Доступны: {string.Join(", ", _models)}, default.", ct);
+    }
+
+    // Возвращает текст подтверждения или null, если модель не разрешена.
+    private string? SetModel(long chatId, string model) {
+        model = model.Trim().ToLowerInvariant();
+        if (model is "default" or "по умолчанию") {
+            chatSettings.SetModel(chatId, null);
+            return $"Модель: {ModelLabel(null)}";
+        }
+        if (!_models.Contains(model, StringComparer.OrdinalIgnoreCase)) return null;
+        chatSettings.SetModel(chatId, model);
+        return $"Модель: {model}";
+    }
+
+    private InlineKeyboardMarkup ModelButtons(string? current) {
+        var buttons = _models
+            .Select(m => InlineKeyboardButton.WithCallbackData((m == current ? "✓ " : "") + m, $"model:{m}"))
+            .Append(InlineKeyboardButton.WithCallbackData((current is null ? "✓ " : "") + "по умолчанию", "model:default"));
+        return new InlineKeyboardMarkup(buttons.Chunk(2).Select(row => row.ToArray()));
+    }
+
+    private string ModelLabel(string? chatModel) =>
+        chatModel ?? (string.IsNullOrWhiteSpace(_claude.Model) ? "по умолчанию" : $"{_claude.Model} (по умолчанию)");
+
+    private static string HelpText() =>
+        "Я ваш агент на Claude. Пишите задачу текстом, присылайте фото, скриншоты и файлы.\n\n" +
+        "Умею искать в интернете, вести заметки и задачи с напоминаниями, смотреть ваши репозитории.\n\n" +
+        "/new — начать новый диалог\n" +
+        "/tasks — открытые задачи\n" +
+        "/model — модель для этого чата (haiku дешевле по лимитам)\n" +
+        "/usage — лимиты подписки и статистика";
+
+    // --- Фото, документы и всё остальное, что не текст ---
+
     private async Task HandleMediaAsync(Message msg, CancellationToken ct) {
         var chatId = msg.Chat.Id;
         try {
@@ -146,6 +237,8 @@ public sealed class BotWorker(
         }
     }
 
+    // --- Кнопки ---
+
     private async Task HandleCallbackAsync(CallbackQuery query, CancellationToken ct) {
         try {
             if (!_allowed.Contains(query.From.Id)) {
@@ -153,34 +246,53 @@ public sealed class BotWorker(
                 return;
             }
 
-            if (ReminderService.IsTaskCallback(query.Data))
+            if (ReminderService.IsTaskCallback(query.Data)) {
                 await reminders.HandleCallbackAsync(query, ct);
-            else
+            } else if (query.Data?.StartsWith("model:") == true && query.Message is { } msg) {
+                var result = SetModel(msg.Chat.Id, query.Data["model:".Length..]) ?? "Модель недоступна";
+                await bot.AnswerCallbackQuery(query.Id, result, cancellationToken: ct);
+                await bot.EditMessageText(msg.Chat.Id, msg.Id, result, replyMarkup: null, cancellationToken: ct);
+            } else {
                 await bot.AnswerCallbackQuery(query.Id, cancellationToken: ct);
+            }
         } catch (Exception ex) when (!ct.IsCancellationRequested) {
             log.LogError(ex, "Failed to handle callback {Data}", query.Data);
         }
     }
 
+    // --- Запрос к агенту ---
+
     private async Task AskClaudeAsync(long chatId, string text, CancellationToken ct) {
         using var typing = CancellationTokenSource.CreateLinkedTokenSource(ct);
         _ = KeepTypingAsync(chatId, typing.Token);
 
-        var sessionId = sessions.Get(chatId);
-        var reply = await claude.AskAsync(text, sessionId, ct);
+        ClaudeReply reply;
+        await using (var progress = new ProgressReporter(bot, chatId, log, ct)) {
+            var model = chatSettings.GetModel(chatId);
+            var sessionId = sessions.Get(chatId);
+            reply = await claude.AskAsync(text, sessionId, model, progress.OnToolCall, ct);
 
-        // Сессия могла протухнуть или удалиться — пробуем один раз с чистого листа.
-        if (reply.IsError && sessionId is not null) {
-            sessions.Reset(chatId);
-            reply = await claude.AskAsync(text, null, ct);
+            // Сессия могла протухнуть или удалиться — пробуем один раз с чистого листа.
+            if (reply.IsError && sessionId is not null) {
+                sessions.Reset(chatId);
+                reply = await claude.AskAsync(text, null, model, progress.OnToolCall, ct);
+            }
         }
-
         typing.Cancel();
 
         if (reply.SessionId is not null && !reply.IsError)
             sessions.Set(chatId, reply.SessionId);
 
-        await Send(chatId, string.IsNullOrWhiteSpace(reply.Text) ? "(пустой ответ)" : reply.Text, ct);
+        if (reply.IsError) {
+            // Ошибки (лимит, таймаут, падение claude) — простым текстом, как есть.
+            await Send(chatId, string.IsNullOrWhiteSpace(reply.Text) ? "Агент вернул ошибку без текста." : reply.Text, ct);
+            return;
+        }
+
+        await SendMarkdown(chatId, string.IsNullOrWhiteSpace(reply.Text) ? "(пустой ответ)" : reply.Text, ct);
+
+        if (UsageReport.Warning(usage, _claude.LimitWarningPercent) is { } warning)
+            await SendHtml(chatId, warning, null, ct);
     }
 
     private async Task KeepTypingAsync(long chatId, CancellationToken ct) {
@@ -192,9 +304,28 @@ public sealed class BotWorker(
         } catch (OperationCanceledException) { }
     }
 
+    // --- Отправка ---
+
+    // Ответ модели: Markdown -> Telegram HTML. Если Telegram не принял разметку куска,
+    // этот кусок уходит простым текстом.
+    private async Task SendMarkdown(long chatId, string markdown, CancellationToken ct) {
+        foreach (var chunk in TelegramFormatter.ToHtmlChunks(markdown)) {
+            try {
+                await bot.SendMessage(chatId, chunk, parseMode: ParseMode.Html, linkPreviewOptions: NoPreview, cancellationToken: ct);
+            } catch (ApiRequestException ex) when (ex.ErrorCode == 400) {
+                log.LogWarning("Telegram не принял HTML ({Error}), отправляю текстом", ex.Message);
+                foreach (var plain in TelegramFormatter.ToPlainChunks(TelegramFormatter.StripTags(chunk)))
+                    await bot.SendMessage(chatId, plain, linkPreviewOptions: NoPreview, cancellationToken: ct);
+            }
+        }
+    }
+
+    private async Task SendHtml(long chatId, string html, InlineKeyboardMarkup? markup, CancellationToken ct) =>
+        await bot.SendMessage(chatId, html, parseMode: ParseMode.Html, replyMarkup: markup,
+            linkPreviewOptions: NoPreview, cancellationToken: ct);
+
     private async Task Send(long chatId, string text, CancellationToken ct) {
-        // Отправляем простым текстом: Markdown от модели часто ломает парсер Telegram.
-        for (var i = 0; i < text.Length; i += TelegramMaxLength)
-            await bot.SendMessage(chatId, text.Substring(i, Math.Min(TelegramMaxLength, text.Length - i)), cancellationToken: ct);
+        for (var i = 0; i < text.Length; i += PlainMaxLength)
+            await bot.SendMessage(chatId, text.Substring(i, Math.Min(PlainMaxLength, text.Length - i)), cancellationToken: ct);
     }
 }

@@ -27,6 +27,8 @@ builder.Services.AddSingleton<ITelegramBotClient>(sp =>
     new TelegramBotClient(sp.GetRequiredService<IOptions<BotOptions>>().Value.Token));
 builder.Services.AddSingleton<ClaudeRunner>();
 builder.Services.AddSingleton<SessionStore>();
+builder.Services.AddSingleton<ChatSettingsStore>();
+builder.Services.AddSingleton<UsageStore>();
 builder.Services.AddHostedService<BotWorker>();
 
 builder.Build().Run();
