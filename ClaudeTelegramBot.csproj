@@ -14,6 +14,11 @@
     <PackageReference Include="Telegram.Bot" Version="22.*" />
   </ItemGroup>
 
+  <!-- Хранилище заметок и задач общее с MCP-сервером: бот читает его для напоминаний. -->
+  <ItemGroup>
+    <Compile Include="PersonalMcp\DataStore.cs" Link="Shared\DataStore.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="agent-workspace\**" CopyToOutputDirectory="PreserveNewest" />

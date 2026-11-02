@@ -10,6 +10,7 @@ public sealed class BotWorker(
     ITelegramBotClient bot,
     ClaudeRunner claude,
     SessionStore sessions,
+    ReminderService reminders,
     IOptions<BotOptions> options,
     ILogger<BotWorker> log) : BackgroundService
 {
@@ -31,7 +32,8 @@ public sealed class BotWorker(
             Update[] updates;
             try
             {
-                updates = await bot.GetUpdates(offset, timeout: 30, allowedUpdates: [UpdateType.Message], cancellationToken: ct);
+                updates = await bot.GetUpdates(offset, timeout: 30,
+                    allowedUpdates: [UpdateType.Message, UpdateType.CallbackQuery], cancellationToken: ct);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -49,6 +51,8 @@ public sealed class BotWorker(
                 offset = update.Id + 1;
                 if (update.Message is { Text: { } text, From: { } from } msg)
                     _ = HandleAsync(msg.Chat.Id, from.Id, text, ct);
+                else if (update.CallbackQuery is { } query)
+                    _ = HandleCallbackAsync(query, ct);
             }
         }
     }
@@ -66,7 +70,10 @@ public sealed class BotWorker(
             switch (text.Trim())
             {
                 case "/start":
-                    await Send(chatId, "Привет! Пишите задачу. /new — начать новый диалог.", ct);
+                    await Send(chatId, "Привет! Пишите задачу. /new — начать новый диалог, /tasks — открытые задачи.", ct);
+                    return;
+                case "/tasks":
+                    await Send(chatId, reminders.FormatOpenTasks(), ct);
                     return;
                 case "/new":
                     sessions.Reset(chatId);
@@ -89,6 +96,27 @@ public sealed class BotWorker(
         {
             log.LogError(ex, "Failed to handle message in chat {ChatId}", chatId);
             await Send(chatId, "Что-то пошло не так, подробности в логах.", ct);
+        }
+    }
+
+    private async Task HandleCallbackAsync(CallbackQuery query, CancellationToken ct)
+    {
+        try
+        {
+            if (!_allowed.Contains(query.From.Id))
+            {
+                await bot.AnswerCallbackQuery(query.Id, "Нет доступа", cancellationToken: ct);
+                return;
+            }
+
+            if (ReminderService.IsTaskCallback(query.Data))
+                await reminders.HandleCallbackAsync(query, ct);
+            else
+                await bot.AnswerCallbackQuery(query.Id, cancellationToken: ct);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            log.LogError(ex, "Failed to handle callback {Data}", query.Data);
         }
     }
 

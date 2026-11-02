@@ -41,3 +41,14 @@ public sealed class PersonalMcpOptions
     // Папка с git-репозиториями для list_repos / repo_status. Пусто = инструменты отключены.
     public string ReposRoot { get; set; } = "";
 }
+
+// Напоминания и утренняя сводка. Работают без вызова claude, лимиты не тратят.
+// Получатели — все пользователи из Bot:AllowedUserIds (личный чат с ботом = user id).
+public sealed class ReminderOptions
+{
+    public bool Enabled { get; set; } = true;
+    public int CheckIntervalSeconds { get; set; } = 30;
+
+    // Время утренней сводки HH:mm. Пусто = сводка отключена.
+    public string DigestTime { get; set; } = "09:00";
+}

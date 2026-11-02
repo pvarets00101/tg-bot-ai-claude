@@ -11,6 +11,15 @@ builder.Configuration.AddUserSecrets<Program>(optional: true);
 builder.Services.Configure<BotOptions>(builder.Configuration.GetSection("Bot"));
 builder.Services.Configure<ClaudeOptions>(builder.Configuration.GetSection("Claude"));
 builder.Services.Configure<PersonalMcpOptions>(builder.Configuration.GetSection("PersonalMcp"));
+builder.Services.Configure<ReminderOptions>(builder.Configuration.GetSection("Reminders"));
+
+// Тот же файл, что и у MCP-сервера (путь передаётся ему в mcp-config.json).
+builder.Services.AddSingleton(sp => new PersonalMcp.DataStore(Path.GetFullPath(
+    sp.GetRequiredService<IOptions<PersonalMcpOptions>>().Value.DataPath, AppContext.BaseDirectory)));
+
+// Один экземпляр и как фоновая служба, и как обработчик кнопок для BotWorker.
+builder.Services.AddSingleton<ReminderService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ReminderService>());
 
 builder.Services.AddSingleton<ITelegramBotClient>(sp =>
     new TelegramBotClient(sp.GetRequiredService<IOptions<BotOptions>>().Value.Token));
