@@ -15,8 +15,7 @@ public sealed class AttachmentService(
     ITelegramBotClient bot,
     ClaudeRunner claude,
     IOptions<AttachmentOptions> options,
-    ILogger<AttachmentService> log)
-{
+    ILogger<AttachmentService> log) {
     private const string InboxFolder = "inbox";
     private const string DefaultInstruction =
         "Посмотри, что я прислал, и коротко скажи, что там. Если это ошибка, лог или код — " +
@@ -28,8 +27,7 @@ public sealed class AttachmentService(
 
     public static bool HasAttachment(Message m) => m.Photo is { Length: > 0 } || m.Document is not null;
 
-    public async Task<SavedAttachment> DownloadAsync(Message m, CancellationToken ct)
-    {
+    public async Task<SavedAttachment> DownloadAsync(Message m, CancellationToken ct) {
         string fileId, fileName, kind;
         long? size;
 
@@ -67,8 +65,7 @@ public sealed class AttachmentService(
         return new SavedAttachment($"{InboxFolder}/{m.Chat.Id}/{name}", kind, actualSize);
     }
 
-    public static string BuildPrompt(string? caption, IReadOnlyList<SavedAttachment> files)
-    {
+    public static string BuildPrompt(string? caption, IReadOnlyList<SavedAttachment> files) {
         var sb = new StringBuilder(string.IsNullOrWhiteSpace(caption) ? DefaultInstruction : caption.Trim());
         sb.Append("\n\n[Вложения пользователя — прочитай их инструментом Read, пути относительно текущей папки:]");
         foreach (var f in files)
@@ -76,8 +73,7 @@ public sealed class AttachmentService(
         return sb.ToString();
     }
 
-    private void CleanupOldFiles()
-    {
+    private void CleanupOldFiles() {
         var inbox = Path.Combine(claude.WorkingDirectory, InboxFolder);
         var threshold = DateTime.Now.AddDays(-Math.Max(1, _o.RetentionDays));
         try {
@@ -89,8 +85,7 @@ public sealed class AttachmentService(
         }
     }
 
-    private static string Sanitize(string name)
-    {
+    private static string Sanitize(string name) {
         var invalid = Path.GetInvalidFileNameChars();
         var clean = new string(name.Select(c => invalid.Contains(c) || char.IsControl(c) ? '_' : c).ToArray()).Trim(' ', '.');
         if (clean.Length == 0) clean = "file";
@@ -105,8 +100,7 @@ public sealed class AttachmentService(
         return clean;
     }
 
-    private static string UniqueName(string dir, string name)
-    {
+    private static string UniqueName(string dir, string name) {
         var candidate = name;
         for (var i = 2; File.Exists(Path.Combine(dir, candidate)); i++)
             candidate = $"{Path.GetFileNameWithoutExtension(name)}_{i}{Path.GetExtension(name)}";

@@ -5,16 +5,14 @@ using ModelContextProtocol.Server;
 namespace PersonalMcp.Tools;
 
 [McpServerToolType]
-public sealed class TaskTools(DataStore store)
-{
+public sealed class TaskTools(DataStore store) {
     [McpServerTool(Name = "add_task"),
      Description("Добавляет задачу в список дел. Если указано время, бот пришлёт напоминание в Telegram " +
                  "в этот момент. Время без даты = сегодня (или завтра, если время уже прошло). Возвращает id задачи.")]
     public string AddTask(
         [Description("Что нужно сделать")] string title,
         [Description("Срок в формате yyyy-MM-dd, если есть")] string? due = null,
-        [Description("Время напоминания HH:mm, если пользователь просит напомнить в конкретное время")] string? time = null)
-    {
+        [Description("Время напоминания HH:mm, если пользователь просит напомнить в конкретное время")] string? time = null) {
         if (string.IsNullOrWhiteSpace(title)) return "Ошибка: пустое название задачи.";
         if (!TryParseSchedule(due, time, out var dueDate, out var remindAt, out var error)) return error;
 
@@ -37,8 +35,7 @@ public sealed class TaskTools(DataStore store)
     public string RescheduleTask(
         [Description("id задачи")] int id,
         [Description("Новый срок yyyy-MM-dd")] string? due = null,
-        [Description("Новое время напоминания HH:mm")] string? time = null)
-    {
+        [Description("Новое время напоминания HH:mm")] string? time = null) {
         if (!TryParseSchedule(due, time, out var dueDate, out var remindAt, out var error)) return error;
 
         return store.Update(d => {
@@ -53,8 +50,7 @@ public sealed class TaskTools(DataStore store)
 
     [McpServerTool(Name = "list_tasks", ReadOnly = true),
      Description("Показывает список дел: открытые задачи по сроку, затем без срока. Сегодняшняя дата указана в первой строке.")]
-    public string ListTasks([Description("Показать и выполненные задачи")] bool includeDone = false)
-    {
+    public string ListTasks([Description("Показать и выполненные задачи")] bool includeDone = false) {
         var today = DateOnly.FromDateTime(DateTime.Now);
         var tasks = store.Read(d => d.Tasks
             .Where(t => includeDone || !t.Done)
@@ -89,8 +85,7 @@ public sealed class TaskTools(DataStore store)
             ? $"Задача #{id} удалена."
             : $"Задача #{id} не найдена.";
 
-    private static string Describe(TaskItem t)
-    {
+    private static string Describe(TaskItem t) {
         var parts = new List<string>();
         if (t.Due is { } d) parts.Add($"срок {d:yyyy-MM-dd}");
         if (t.RemindAt is { } r) parts.Add($"напоминание {r:yyyy-MM-dd HH:mm}{(t.Reminded ? " (отправлено)" : "")}");
@@ -98,8 +93,7 @@ public sealed class TaskTools(DataStore store)
     }
 
     private static bool TryParseSchedule(string? due, string? time,
-        out DateOnly? dueDate, out DateTimeOffset? remindAt, out string error)
-    {
+        out DateOnly? dueDate, out DateTimeOffset? remindAt, out string error) {
         dueDate = null;
         remindAt = null;
         error = "";

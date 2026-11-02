@@ -9,14 +9,12 @@ public sealed record RepoSettings(string Root);
 
 // Только чтение: агент видит состояние репозиториев, но ничего в них не меняет.
 [McpServerToolType]
-public sealed class RepoTools(RepoSettings settings)
-{
+public sealed class RepoTools(RepoSettings settings) {
     private const int MaxOutput = 3000;
 
     [McpServerTool(Name = "list_repos", ReadOnly = true),
      Description("Список git-репозиториев пользователя (папки верхнего уровня в корне репозиториев).")]
-    public string ListRepos()
-    {
+    public string ListRepos() {
         if (!TryGetRoot(out var root, out var error)) return error;
 
         var repos = Directory.EnumerateDirectories(root)
@@ -32,8 +30,7 @@ public sealed class RepoTools(RepoSettings settings)
     public async Task<string> RepoStatus(
         [Description("Имя папки репозитория из list_repos")] string name,
         [Description("Сколько последних коммитов показать (1–30)")] int commits = 5,
-        CancellationToken ct = default)
-    {
+        CancellationToken ct = default) {
         if (!TryGetRoot(out var root, out var error)) return error;
 
         // Только имя папки, без путей: агент не должен выходить за пределы корня.
@@ -47,8 +44,7 @@ public sealed class RepoTools(RepoSettings settings)
         return Truncate($"== status\n{status}\n== последние коммиты\n{log}");
     }
 
-    private bool TryGetRoot(out string root, out string error)
-    {
+    private bool TryGetRoot(out string root, out string error) {
         root = settings.Root;
         error = "";
         if (!string.IsNullOrWhiteSpace(root) && Directory.Exists(root)) return true;
@@ -56,8 +52,7 @@ public sealed class RepoTools(RepoSettings settings)
         return false;
     }
 
-    private static async Task<string> Git(string dir, CancellationToken ct, params string[] args)
-    {
+    private static async Task<string> Git(string dir, CancellationToken ct, params string[] args) {
         var psi = new ProcessStartInfo("git") {
             RedirectStandardOutput = true,
             RedirectStandardError = true,

@@ -11,8 +11,7 @@ public sealed record ClaudeReply(string Text, string? SessionId, bool IsError, d
 public sealed class ClaudeRunner(
     IOptions<ClaudeOptions> options,
     IOptions<PersonalMcpOptions> mcpOptions,
-    ILogger<ClaudeRunner> log)
-{
+    ILogger<ClaudeRunner> log) {
     private readonly ClaudeOptions _o = options.Value;
     private readonly SemaphoreSlim _gate = new(options.Value.MaxConcurrency);
     private readonly string? _mcpConfigPath = WriteMcpConfig(mcpOptions.Value, log);
@@ -21,8 +20,7 @@ public sealed class ClaudeRunner(
         options.Value.WorkingDirectory, AppContext.BaseDirectory);
 
     // Генерирует mcp-config.json с абсолютными путями, чтобы не зависеть от того, откуда запущен бот.
-    private static string? WriteMcpConfig(PersonalMcpOptions o, ILogger log)
-    {
+    private static string? WriteMcpConfig(PersonalMcpOptions o, ILogger log) {
         if (!o.Enabled) return null;
 
         var serverPath = Path.GetFullPath(o.ServerPath, AppContext.BaseDirectory);
@@ -55,8 +53,7 @@ public sealed class ClaudeRunner(
         return path;
     }
 
-    public async Task<ClaudeReply> AskAsync(string prompt, string? sessionId, CancellationToken ct)
-    {
+    public async Task<ClaudeReply> AskAsync(string prompt, string? sessionId, CancellationToken ct) {
         await _gate.WaitAsync(ct);
         try {
             return await RunAsync(prompt, sessionId, ct);
@@ -65,8 +62,7 @@ public sealed class ClaudeRunner(
         }
     }
 
-    private async Task<ClaudeReply> RunAsync(string prompt, string? sessionId, CancellationToken ct)
-    {
+    private async Task<ClaudeReply> RunAsync(string prompt, string? sessionId, CancellationToken ct) {
         Directory.CreateDirectory(WorkingDirectory);
 
         var psi = new ProcessStartInfo(_o.ExecutablePath) {
@@ -138,8 +134,7 @@ public sealed class ClaudeRunner(
     // SystemPrompt + файл инструкций -> один файл для --append-system-prompt-file.
     // Через файл, а не аргументом: многострочный текст ломается при передаче через claude.cmd.
     // Читаем при каждом запуске, чтобы правки инструкций подхватывались без перезапуска бота.
-    private string? WriteSystemPromptFile()
-    {
+    private string? WriteSystemPromptFile() {
         var parts = new List<string>();
         if (!string.IsNullOrWhiteSpace(_o.SystemPrompt)) parts.Add(_o.SystemPrompt.Trim());
 
@@ -161,8 +156,7 @@ public sealed class ClaudeRunner(
     private static string DotnetRoot() => Path.GetFullPath(Path.Combine(
         System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory(), "..", "..", ".."));
 
-    private static void Add(ProcessStartInfo psi, string name, string value)
-    {
+    private static void Add(ProcessStartInfo psi, string name, string value) {
         psi.ArgumentList.Add(name);
         psi.ArgumentList.Add(value);
     }

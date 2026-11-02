@@ -13,8 +13,7 @@ public sealed class BotWorker(
     ReminderService reminders,
     AttachmentService attachments,
     IOptions<BotOptions> options,
-    ILogger<BotWorker> log) : BackgroundService
-{
+    ILogger<BotWorker> log) : BackgroundService {
     private const int TelegramMaxLength = 4000;
 
     // Альбом приходит отдельными сообщениями с общим MediaGroupId. Ждём остальные части столько,
@@ -27,8 +26,7 @@ public sealed class BotWorker(
     private readonly ConcurrentDictionary<long, SemaphoreSlim> _chatLocks = new();
     private readonly ConcurrentDictionary<string, List<Message>> _albums = new();
 
-    protected override async Task ExecuteAsync(CancellationToken ct)
-    {
+    protected override async Task ExecuteAsync(CancellationToken ct) {
         var me = await bot.GetMe(ct);
         log.LogInformation("Bot @{Username} started, agent workspace: {Dir}", me.Username, claude.WorkingDirectory);
 
@@ -58,8 +56,7 @@ public sealed class BotWorker(
         }
     }
 
-    private async Task HandleAsync(long chatId, long userId, string text, CancellationToken ct)
-    {
+    private async Task HandleAsync(long chatId, long userId, string text, CancellationToken ct) {
         try {
             if (!_allowed.Contains(userId)) {
                 await Send(chatId, $"Нет доступа. Ваш user id: {userId}", ct);
@@ -87,8 +84,7 @@ public sealed class BotWorker(
     }
 
     // Фото, документы и всё остальное, что не текст.
-    private async Task HandleMediaAsync(Message msg, CancellationToken ct)
-    {
+    private async Task HandleMediaAsync(Message msg, CancellationToken ct) {
         var chatId = msg.Chat.Id;
         try {
             if (!_allowed.Contains(msg.From!.Id)) {
@@ -123,8 +119,7 @@ public sealed class BotWorker(
 
     // Одиночное сообщение возвращается сразу. Для альбома первое сообщение ждёт остальные
     // и возвращает их все, остальные получают null.
-    private async Task<IReadOnlyList<Message>?> CollectAlbumAsync(Message msg, CancellationToken ct)
-    {
+    private async Task<IReadOnlyList<Message>?> CollectAlbumAsync(Message msg, CancellationToken ct) {
         if (msg.MediaGroupId is not { } groupId) return [msg];
 
         var key = $"{msg.Chat.Id}:{groupId}";
@@ -141,8 +136,7 @@ public sealed class BotWorker(
         lock (list) return list.OrderBy(m => m.Id).ToList();
     }
 
-    private async Task InChatQueue(long chatId, Func<Task> action, CancellationToken ct)
-    {
+    private async Task InChatQueue(long chatId, Func<Task> action, CancellationToken ct) {
         var chatLock = _chatLocks.GetOrAdd(chatId, _ => new SemaphoreSlim(1));
         await chatLock.WaitAsync(ct);
         try {
@@ -152,8 +146,7 @@ public sealed class BotWorker(
         }
     }
 
-    private async Task HandleCallbackAsync(CallbackQuery query, CancellationToken ct)
-    {
+    private async Task HandleCallbackAsync(CallbackQuery query, CancellationToken ct) {
         try {
             if (!_allowed.Contains(query.From.Id)) {
                 await bot.AnswerCallbackQuery(query.Id, "Нет доступа", cancellationToken: ct);
@@ -169,8 +162,7 @@ public sealed class BotWorker(
         }
     }
 
-    private async Task AskClaudeAsync(long chatId, string text, CancellationToken ct)
-    {
+    private async Task AskClaudeAsync(long chatId, string text, CancellationToken ct) {
         using var typing = CancellationTokenSource.CreateLinkedTokenSource(ct);
         _ = KeepTypingAsync(chatId, typing.Token);
 
@@ -191,8 +183,7 @@ public sealed class BotWorker(
         await Send(chatId, string.IsNullOrWhiteSpace(reply.Text) ? "(пустой ответ)" : reply.Text, ct);
     }
 
-    private async Task KeepTypingAsync(long chatId, CancellationToken ct)
-    {
+    private async Task KeepTypingAsync(long chatId, CancellationToken ct) {
         try {
             while (!ct.IsCancellationRequested) {
                 await bot.SendChatAction(chatId, ChatAction.Typing, cancellationToken: ct);
@@ -201,8 +192,7 @@ public sealed class BotWorker(
         } catch (OperationCanceledException) { }
     }
 
-    private async Task Send(long chatId, string text, CancellationToken ct)
-    {
+    private async Task Send(long chatId, string text, CancellationToken ct) {
         // Отправляем простым текстом: Markdown от модели часто ломает парсер Telegram.
         for (var i = 0; i < text.Length; i += TelegramMaxLength)
             await bot.SendMessage(chatId, text.Substring(i, Math.Min(TelegramMaxLength, text.Length - i)), cancellationToken: ct);

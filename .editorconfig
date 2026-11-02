@@ -14,10 +14,9 @@ indent_size = 2
 trim_trailing_whitespace = false
 
 [*.cs]
-# K&R: типы и тела методов/конструкторов/локальных функций — скобка на новой строке,
-# всё остальное (if/for, лямбды, свойства, инициализаторы) — на той же.
+# Открывающая { всегда на строке объявления: классы, методы, if/for, лямбды, свойства, инициализаторы.
 # else/catch/finally — после закрывающей скобки.
-csharp_new_line_before_open_brace = types, methods, local_functions
+csharp_new_line_before_open_brace = none
 csharp_new_line_before_else = false
 csharp_new_line_before_catch = false
 csharp_new_line_before_finally = false
@@ -26,8 +25,8 @@ csharp_new_line_before_members_in_anonymous_types = true
 
 # То же для Rider/ReSharper.
 resharper_brace_style = end_of_line
-resharper_type_declaration_braces = next_line
-resharper_invocable_declaration_braces = next_line
+resharper_type_declaration_braces = end_of_line
+resharper_invocable_declaration_braces = end_of_line
 resharper_anonymous_method_declaration_braces = end_of_line
 resharper_accessor_owner_declaration_braces = end_of_line
 resharper_accessor_declaration_braces = end_of_line

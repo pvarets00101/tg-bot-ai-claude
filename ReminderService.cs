@@ -15,15 +15,13 @@ public sealed class ReminderService(
     DataStore store,
     IOptions<ReminderOptions> options,
     IOptions<BotOptions> botOptions,
-    ILogger<ReminderService> log) : BackgroundService
-{
+    ILogger<ReminderService> log) : BackgroundService {
     private readonly ReminderOptions _o = options.Value;
     private readonly long[] _recipients = botOptions.Value.AllowedUserIds;
     private readonly TimeOnly? _digestTime = TimeOnly.TryParseExact(
         options.Value.DigestTime, ["HH:mm", "H:mm"], CultureInfo.InvariantCulture, DateTimeStyles.None, out var t) ? t : null;
 
-    protected override async Task ExecuteAsync(CancellationToken ct)
-    {
+    protected override async Task ExecuteAsync(CancellationToken ct) {
         if (!_o.Enabled || _recipients.Length == 0) {
             log.LogInformation("Напоминания выключены (Enabled=false или пустой AllowedUserIds).");
             return;
@@ -41,8 +39,7 @@ public sealed class ReminderService(
         } while (await timer.WaitForNextTickAsync(ct));
     }
 
-    private async Task SendDueRemindersAsync(CancellationToken ct)
-    {
+    private async Task SendDueRemindersAsync(CancellationToken ct) {
         var now = DateTimeOffset.Now;
 
         // Помечаем отправленными сразу под блокировкой: даже если отправка упадёт,
@@ -59,8 +56,7 @@ public sealed class ReminderService(
         }
     }
 
-    private async Task SendDigestIfTimeAsync(CancellationToken ct)
-    {
+    private async Task SendDigestIfTimeAsync(CancellationToken ct) {
         if (_digestTime is not { } digestTime) return;
 
         var now = DateTime.Now;
@@ -95,8 +91,7 @@ public sealed class ReminderService(
 
     public static bool IsTaskCallback(string? data) => data?.StartsWith("task:") == true;
 
-    public async Task HandleCallbackAsync(CallbackQuery query, CancellationToken ct)
-    {
+    public async Task HandleCallbackAsync(CallbackQuery query, CancellationToken ct) {
         var parts = query.Data!.Split(':');
         if (parts.Length < 3 || !int.TryParse(parts[2], out var id)) {
             await bot.AnswerCallbackQuery(query.Id, "Непонятная кнопка", cancellationToken: ct);
@@ -128,8 +123,7 @@ public sealed class ReminderService(
         return "Выполнено ✅";
     });
 
-    private string? Snooze(int id, string arg)
-    {
+    private string? Snooze(int id, string arg) {
         DateTime at;
         if (arg == "tomorrow")
             at = DateTime.Today.AddDays(1).Add((_digestTime ?? new TimeOnly(9, 0)).ToTimeSpan());
@@ -151,8 +145,7 @@ public sealed class ReminderService(
 
     // --- /tasks без вызова claude ---
 
-    public string FormatOpenTasks()
-    {
+    public string FormatOpenTasks() {
         var today = DateOnly.FromDateTime(DateTime.Now);
         var tasks = store.Read(d => d.Tasks
             .Where(t => !t.Done)
@@ -170,8 +163,7 @@ public sealed class ReminderService(
         return sb.ToString();
     }
 
-    private async Task Broadcast(string text, InlineKeyboardMarkup? markup, CancellationToken ct)
-    {
+    private async Task Broadcast(string text, InlineKeyboardMarkup? markup, CancellationToken ct) {
         foreach (var chatId in _recipients) {
             try {
                 await bot.SendMessage(chatId, text, replyMarkup: markup, cancellationToken: ct);
