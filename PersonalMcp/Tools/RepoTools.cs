@@ -34,7 +34,7 @@ public sealed class RepoTools(RepoSettings settings) {
         if (!TryGetRoot(out var root, out var error)) return error;
 
         // Только имя папки, без путей: агент не должен выходить за пределы корня.
-        if (string.IsNullOrWhiteSpace(name) || name.IndexOfAny(['/', '\\', ':']) >= 0 || name.Contains(".."))
+        if (string.IsNullOrWhiteSpace(name) || name.IndexOfAny(['/', '\\', ':']) >= 0 || name.Trim('.') == "" || name.Contains(".."))
             return "Ошибка: укажите имя папки репозитория из list_repos.";
         var dir = Path.Combine(root, name);
         if (!Directory.Exists(dir)) return $"Репозиторий {name} не найден.";

@@ -75,6 +75,11 @@ public sealed class ClaudeRunner(
             UseShellExecute = false,
         };
 
+        // claude и MCP-сервер наследуют окружение бота. Убираем из него настройки бота
+        // (в т.ч. токен, если он задан через Bot__Token), чтобы они не попали к агенту.
+        foreach (var key in psi.Environment.Keys.Where(k => k.StartsWith("Bot__", StringComparison.OrdinalIgnoreCase)).ToList())
+            psi.Environment.Remove(key);
+
         // Аргументы через ArgumentList, а промпт через stdin: никаких проблем с экранированием.
         psi.ArgumentList.Add("-p");
         Add(psi, "--output-format", "json");
