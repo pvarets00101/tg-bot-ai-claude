@@ -25,7 +25,12 @@ public sealed class ClaudeOptions {
     public bool Restricted { get; set; } = true;
 
     // --tools: какие встроенные инструменты вообще существуют для агента. MCP-инструменты не затрагивает.
-    public string[] Tools { get; set; } = ["Read", "WebSearch", "WebFetch"];
+    // Без значения по умолчанию в инициализаторе: ConfigurationBinder ДОПИСЫВАЕТ элементы из конфига
+    // к массиву по умолчанию, и убрать инструмент через appsettings было бы нельзя.
+    // Не задано в конфиге -> DefaultTools (см. ClaudeRunner).
+    public string[]? Tools { get; set; }
+
+    public static readonly string[] DefaultTools = ["Read", "WebSearch"];
 
     // --permission-mode: dontAsk = всё, что не в AllowedTools, молча отклоняется.
     public string PermissionMode { get; set; } = "dontAsk";

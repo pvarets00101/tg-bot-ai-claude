@@ -86,7 +86,9 @@ public sealed class ClaudeRunner(
         Add(psi, "--max-turns", _o.MaxTurns.ToString());
         if (!string.IsNullOrWhiteSpace(_o.Model)) Add(psi, "--model", _o.Model);
         if (_o.Restricted) psi.ArgumentList.Add("--restricted");
-        if (_o.Tools.Length > 0) Add(psi, "--tools", string.Join(",", _o.Tools));
+        // Всегда передаём --tools: без него агент получил бы весь набор встроенных инструментов.
+        var tools = _o.Tools is { Length: > 0 } t ? t : ClaudeOptions.DefaultTools;
+        Add(psi, "--tools", string.Join(",", tools.Distinct(StringComparer.OrdinalIgnoreCase)));
         if (!string.IsNullOrWhiteSpace(_o.PermissionMode)) Add(psi, "--permission-mode", _o.PermissionMode);
         if (WriteSystemPromptFile() is { } promptFile) Add(psi, "--append-system-prompt-file", promptFile);
         if (_o.AllowedTools.Length > 0) Add(psi, "--allowedTools", string.Join(",", _o.AllowedTools));
