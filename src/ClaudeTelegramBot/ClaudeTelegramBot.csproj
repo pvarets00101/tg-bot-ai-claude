@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <!-- Telegram-бот. Модели и интерфейсы репозиториев — ClaudeTelegramBot.Domain,
+       хранилище — ClaudeTelegramBot.Storage (общее с MCP-сервером). -->
+  <PropertyGroup>
+    <UserSecretsId>claude-telegram-bot</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.*" />
+    <PackageReference Include="Telegram.Bot" Version="22.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ClaudeTelegramBot.Storage\ClaudeTelegramBot.Storage.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="agent-instructions.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="agent-workspace\.gitkeep" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Собираем MCP-сервер вместе с ботом (без ссылки на сборку) и кладём его в bin\...\mcp. -->
+  <ItemGroup>
+    <ProjectReference Include="..\PersonalMcp\PersonalMcp.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <Target Name="CopyPersonalMcp" AfterTargets="Build">
+    <ItemGroup>
+      <PersonalMcpFiles Include="$(MSBuildThisFileDirectory)..\PersonalMcp\bin\$(Configuration)\$(TargetFramework)\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(PersonalMcpFiles)"
+          DestinationFiles="@(PersonalMcpFiles->'$(OutDir)mcp\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

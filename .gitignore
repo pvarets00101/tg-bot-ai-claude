@@ -21,3 +21,12 @@ system-prompt.generated.md
 usage.jsonl
 rate-limit.json
 chat-settings.json
+*.imported
+bot.db
+bot.db-*
+notes.json
+tasks.json
+digest.json
+schema.json
+allowed-users.json
+v1-backup/
